@@ -15,19 +15,22 @@ response_users = requests.get(USERS_API_URL)
 try:
     tasks_data = response_tasks.json()
     users_data = response_users.json()
-except requests.exceptions.RequestException as e:
-    print(f'Ошибка при выполнении HTTP-запроса: {e}')
+except requests.exceptions.RequestException as re:
+    print(f'Ошибка при выполнении HTTP-запроса: {re}')
     exit()
 
 # Создание директории
-if not os.path.exists('tasks'):
-    os.mkdir('tasks')
+try:
+    if not os.path.exists('tasks'):
+        os.mkdir('tasks')
+except PermissionError as pe:
+    print(f'У Вас нет прав доступа на создание файла: {pe}')
 
 # Определение местного времени
 local_timezone = pytz.timezone('Europe/Moscow')
 current_time = datetime.now(local_timezone)
 
-# Создания словаря для хранения данных отчетов в памяти
+# Словарь для хранения данных отчетов в памяти
 reports_data = {}
 
 # Функция для создания текстового отчета для пользователя
@@ -37,8 +40,8 @@ def create_report(user_data, tasks_data):
         username = user_data.get('username')
         company_name = (user_data.get('company')).get('name')
         email = user_data.get('email')
-    except TypeError as e:
-        print(f'user_data должен быть словарем: {e}')
+    except TypeError as te:
+        print(f'user_data должен быть словарем: {te}')
 
     # Формат имени файла
     file_name = f'tasks/{username}.txt'
@@ -49,14 +52,14 @@ def create_report(user_data, tasks_data):
             # Переименование существующего файла
             old_file_name = f'tasks/old_{username}_{current_time.strftime("%Y-%m-%dT%H:%M")}.txt'
             os.rename(file_name, old_file_name)
-        except OSError as e:
+        except OSError as ose:
             try:
                 old_file_name = f'tasks/old_{username}_{current_time.strftime("%Y-%m-%dTime%H_%M")}.txt'
                 os.rename(file_name, old_file_name)
-                print(f'Возможно вы используете не линукс? Выполнена обработка для Windows {e}')
-            except OSError as e:
-                print(f'Упс..., повторите попытку еще раз')
-
+                print(f'Возможно вы используете не линукс? Выполнена обработка для Windows {ose}')
+            except OSError as ose_t:
+                print(f'Упс... повторите попытку еще раз: {ose_t}')
+                exit()
 
     try:
         # Список для хранения данных отчета
@@ -67,51 +70,57 @@ def create_report(user_data, tasks_data):
         # Фильтр задач по пользователю
         try:
             user_tasks = [task for task in tasks_data if task.get('userId') == user_id]
-        except TypeError as e:
-            print(f'task_data должен быть словарем: {e}')
+        except TypeError as te:
+            print(f'task_data должен быть словарем: {te}')
 
         total_tasks = len(user_tasks)
 
-        report_data.append(f'Всего задач: {total_tasks}\n')
-
+        report_data.append(f'Всего задач: {total_tasks}')
         if total_tasks == 0:
-            report_data.append('У данного пользователя нет задач: ')
+            report_data.append('## У данного пользователя нет задач')
+            report_data.append('\n## Актуальные задачи (0)')
+            report_data.append('\n## Завершённые задачи (0)')
         else:
             # Разделение задач на актуальные и завершенные
             incomplete_tasks = [task for task in user_tasks if not task['completed']]
             completed_tasks = [task for task in user_tasks if task['completed']]
 
-            report_data.append('## Актуальные задачи ({0}):'.format(len(incomplete_tasks)))
+            # Формат актуальных задач
+            report_data.append(f'## Актуальные задачи ({len(incomplete_tasks)}):')
             for task in incomplete_tasks:
                 task_title = task['title'][:46] + '...' if len(task['title']) > 46 else task['title']
                 report_data.append(f'- {task_title}')
 
-            report_data.append('\n## Завершённые задачи ({0}):'.format(len(completed_tasks)))
+            # Формат завершенных задач
+            report_data.append(f'\n## Завершённые задачи ({len(completed_tasks)}):')
             for task in completed_tasks:
                 task_title = task['title'][:46] + '...' if len(task['title']) > 46 else task['title']
                 report_data.append(f'- {task_title}')
 
             # Сохранение отчета в словаре
-            #print(reports_data[user_id])
             reports_data[user_id] = '\n'.join(report_data)
 
-    except Exception as e:
-        print(f'Непредвиденная ошибка при записи пользователя {username}: {e}')
+    except Exception as exception:
+        print(f'Непредвиденная ошибка при записи пользователя {username}: {exception}')
+
 
 # Создание и запись отчета для всех существующих(непустых) пользователей
 for user in users_data:
-    create_report(user, tasks_data)
 
-    user_id = user['id']
-    username = user['username']
+    create_report(user, tasks_data)
+    user_id = user.get('id')
+    username = user.get('username')
 
     try:
         # Получить отчет из словаря или пустую строку, если отчета нет
         report_content = reports_data.get(user_id, '')
-    except TypeError as e:
-        print(f'reports_data должен быть словарем: {e}')
+    except TypeError as te:
+        print(f'reports_data должен быть словарем: {te}')
 
     if report_content:
+        try:
             file_name = f'tasks/{username}.txt'
             with open(file_name, 'w', encoding='utf-8') as file:
                 file.write(report_content)
+        except PermissionError as pe:
+            print(f'У Вас нет прав доступа на запись: {pe}')
