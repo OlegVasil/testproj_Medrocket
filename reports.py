@@ -75,9 +75,9 @@ def create_report(user_data, tasks_data):
 
         total_tasks = len(user_tasks)
 
-        report_data.append(f'Всего задач: {total_tasks}')
+        report_data.append(f'Всего задач: {total_tasks}\n')
         if total_tasks == 0:
-            report_data.append('## У данного пользователя нет задач')
+            report_data.append('!! У данного пользователя нет задач')
             report_data.append('\n## Актуальные задачи (0)')
             report_data.append('\n## Завершённые задачи (0)')
         else:
