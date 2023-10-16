@@ -19,6 +19,13 @@ except requests.exceptions.RequestException as re:
     print(f'Ошибка при выполнении HTTP-запроса: {re}')
     exit()
 
+# Проверка на корректность данных
+is_tasks_dict = all(isinstance(task, dict) for task in tasks_data)
+is_users_dict = all(isinstance(task, dict) for task in users_data)
+if not is_tasks_dict or not is_users_dict:
+    print('Данные имеют неверный формат')
+    exit()
+
 # Создание директории
 try:
     if not os.path.exists('tasks'):
@@ -35,31 +42,11 @@ reports_data = {}
 
 # Функция для создания текстового отчета для пользователя
 def create_report(user_data, tasks_data):
-    try:
-        user_id = user_data.get('id')
-        username = user_data.get('username')
-        company_name = (user_data.get('company')).get('name')
-        email = user_data.get('email')
-    except TypeError as te:
-        print(f'user_data должен быть словарем: {te}')
 
-    # Формат имени файла
-    file_name = f'tasks/{username}.txt'
-
-    # Проверка на существование отчета
-    if os.path.exists(file_name):
-        try:
-            # Переименование существующего файла
-            old_file_name = f'tasks/old_{username}_{current_time.strftime("%Y-%m-%dT%H:%M")}.txt'
-            os.rename(file_name, old_file_name)
-        except OSError as ose:
-            try:
-                old_file_name = f'tasks/old_{username}_{current_time.strftime("%Y-%m-%dTime%H_%M")}.txt'
-                os.rename(file_name, old_file_name)
-                print(f'Возможно вы используете не линукс? Выполнена обработка для Windows {ose}')
-            except OSError as ose_t:
-                print(f'Упс... повторите попытку еще раз: {ose_t}')
-                exit()
+    user_id = user_data.get('id')
+    username = user_data.get('username')
+    company_name = (user_data.get('company')).get('name')
+    email = user_data.get('email')
 
     try:
         # Список для хранения данных отчета
@@ -68,16 +55,12 @@ def create_report(user_data, tasks_data):
         report_data.append(f'{user_data["name"]} <{email}> {current_time.strftime("%d.%m.%Y %H:%M")}')
 
         # Фильтр задач по пользователю
-        try:
-            user_tasks = [task for task in tasks_data if task.get('userId') == user_id]
-        except TypeError as te:
-            print(f'task_data должен быть словарем: {te}')
-
+        user_tasks = [task for task in tasks_data if task.get('userId') == user_id]
         total_tasks = len(user_tasks)
 
         report_data.append(f'Всего задач: {total_tasks}\n')
         if total_tasks == 0:
-            report_data.append('!! У данного пользователя нет задач')
+            report_data.append('## У данного пользователя нет задач')
             report_data.append('\n## Актуальные задачи (0)')
             report_data.append('\n## Завершённые задачи (0)')
         else:
@@ -103,6 +86,21 @@ def create_report(user_data, tasks_data):
     except Exception as exception:
         print(f'Непредвиденная ошибка при записи пользователя {username}: {exception}')
 
+    # Формат имени файла
+    file_name = f'tasks/{username}.txt'
+
+    # Проверка на существование отчета
+    if os.path.exists(file_name):
+        if os.name == 'posix':
+            old_file_name = f'tasks/old_{username}_{current_time.strftime("%Y-%m-%dT%H:%M")}.txt'
+        elif os.name == 'nt':
+            old_file_name = f'tasks/old_{username}_{current_time.strftime("%Y-%m-%dTime%H_%M")}.txt'
+            print('Выполяется обработка для Windows')
+        try:
+            os.rename(file_name, old_file_name)
+        except OSError as ose_t:
+            print(f'Упс... повторите попытку еще раз: {ose_t}')
+            exit()
 
 # Создание и запись отчета для всех существующих(непустых) пользователей
 for user in users_data:
@@ -113,7 +111,7 @@ for user in users_data:
 
     # Получить отчет из словаря или пустую строку, если отчета нет
     report_content = reports_data.get(user_id, '')
-    
+
     if report_content:
         try:
             file_name = f'tasks/{username}.txt'
