@@ -3,43 +3,6 @@ import requests
 from datetime import datetime
 import pytz
 
-# Установка URL-адреса для API
-TASKS_API_URL = 'https://json.medrating.org/todos'
-USERS_API_URL = 'https://json.medrating.org/users'
-
-# HTTP-запросы к API для получения данных о задачах и пользователях
-response_tasks = requests.get(TASKS_API_URL)
-response_users = requests.get(USERS_API_URL)
-
-# Проверка выполнения запросов
-try:
-    tasks_data = response_tasks.json()
-    users_data = response_users.json()
-except requests.exceptions.RequestException as re:
-    print(f'Ошибка при выполнении HTTP-запроса: {re}')
-    exit()
-
-# Проверка на корректность данных
-is_tasks_dict = all(isinstance(task, dict) for task in tasks_data)
-is_users_dict = all(isinstance(task, dict) for task in users_data)
-if not is_tasks_dict or not is_users_dict:
-    print('Данные имеют неверный формат')
-    exit()
-
-# Создание директории
-try:
-    if not os.path.exists('tasks'):
-        os.mkdir('tasks')
-except PermissionError as pe:
-    print(f'У Вас нет прав доступа на создание файла: {pe}')
-
-# Определение местного времени
-local_timezone = pytz.timezone('Europe/Moscow')
-current_time = datetime.now(local_timezone)
-
-# Словарь для хранения данных отчетов в памяти
-reports_data = {}
-
 # Функция для создания текстового отчета для пользователя
 def create_report(user_data, tasks_data):
 
@@ -102,6 +65,44 @@ def create_report(user_data, tasks_data):
             print(f'Упс... повторите попытку еще раз: {ose_t}')
             exit()
 
+# Установка URL-адреса для API
+TASKS_API_URL = 'https://json.medrating.org/todos'
+USERS_API_URL = 'https://json.medrating.org/users'
+
+# HTTP-запросы к API для получения данных о задачах и пользователях
+response_tasks = requests.get(TASKS_API_URL)
+response_users = requests.get(USERS_API_URL)
+
+# Проверка выполнения запросов
+try:
+    tasks_data = response_tasks.json()
+    users_data = response_users.json()
+except requests.exceptions.RequestException as re:
+    print(f'Ошибка при выполнении HTTP-запроса: {re}')
+    exit()
+
+# Проверка на корректность данных
+is_tasks_dict = all(isinstance(task, dict) for task in tasks_data)
+is_users_dict = all(isinstance(task, dict) for task in users_data)
+if not is_tasks_dict or not is_users_dict:
+    print('Данные имеют неверный формат')
+    exit()
+
+# Создание директории
+try:
+    if not os.path.exists('tasks'):
+        os.mkdir('tasks')
+except PermissionError as pe:
+    print(f'У Вас нет прав доступа на создание файла: {pe}')
+    exit()
+
+# Определение местного времени
+local_timezone = pytz.timezone('Europe/Moscow')
+current_time = datetime.now(local_timezone)
+
+# Словарь для хранения данных отчетов в памяти
+reports_data = {}
+
 # Создание и запись отчета для всех существующих(непустых) пользователей
 for user in users_data:
 
@@ -119,3 +120,4 @@ for user in users_data:
                 file.write(report_content)
         except PermissionError as pe:
             print(f'У Вас нет прав доступа на запись: {pe}')
+            exit()
