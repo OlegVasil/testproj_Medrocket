@@ -111,12 +111,9 @@ for user in users_data:
     user_id = user.get('id')
     username = user.get('username')
 
-    try:
-        # Получить отчет из словаря или пустую строку, если отчета нет
-        report_content = reports_data.get(user_id, '')
-    except TypeError as te:
-        print(f'reports_data должен быть словарем: {te}')
-
+    # Получить отчет из словаря или пустую строку, если отчета нет
+    report_content = reports_data.get(user_id, '')
+    
     if report_content:
         try:
             file_name = f'tasks/{username}.txt'
