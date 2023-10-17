@@ -1,58 +1,55 @@
 import os
 import requests
 from datetime import datetime
-import pytz
 
-# Функция для создания текстового отчета для пользователя
-def create_report(user_data, tasks_data):
 
-    user_id = user_data.get('id')
-    username = user_data.get('username')
-    company_name = (user_data.get('company')).get('name')
-    email = user_data.get('email')
-
+def perform_request(url):
     try:
-        # Список для хранения данных отчета
-        report_data = []
-        report_data.append(f'# Отчёт для {company_name}.')
-        report_data.append(f'{user_data["name"]} <{email}> {current_time.strftime("%d.%m.%Y %H:%M")}')
+        response = requests.get(url)
+        return response.json()
+    except requests.exceptions.RequestException as re:
+        print(f'Ошибка при выполнении HTTP-запроса: {re}')
+        exit()
 
-        # Фильтр задач по пользователю
-        user_tasks = [task for task in tasks_data if task.get('userId') == user_id]
-        total_tasks = len(user_tasks)
 
-        report_data.append(f'Всего задач: {total_tasks}\n')
-        if total_tasks == 0:
-            report_data.append('## У данного пользователя нет задач')
-            report_data.append('\n## Актуальные задачи (0)')
-            report_data.append('\n## Завершённые задачи (0)')
+def is_valid_data(data):
+    return all(isinstance(item, dict) for item in data)
+
+
+def create_directory(directory_name):
+    try:
+        if not os.path.exists(directory_name):
+            os.mkdir(directory_name)
+    except PermissionError as pe:
+        print(f'У Вас нет прав доступа на создание директории: {pe}')
+        exit()
+
+
+def get_user_tasks(user_id, tasks_data):
+    user_tasks = []
+    for task in tasks_data:
+        if task.get('userId') == user_id:
+            user_tasks.append(task)
+    return user_tasks
+
+
+def categorize_tasks(user_tasks):
+    incomplete_tasks = []
+    completed_tasks = []
+
+    for task in user_tasks:
+        if task['completed']:
+            completed_tasks.append(task)
         else:
-            # Разделение задач на актуальные и завершенные
-            incomplete_tasks = [task for task in user_tasks if not task['completed']]
-            completed_tasks = [task for task in user_tasks if task['completed']]
+            incomplete_tasks.append(task)
 
-            # Формат актуальных задач
-            report_data.append(f'## Актуальные задачи ({len(incomplete_tasks)}):')
-            for task in incomplete_tasks:
-                task_title = task['title'][:46] + '...' if len(task['title']) > 46 else task['title']
-                report_data.append(f'- {task_title}')
+    return completed_tasks, incomplete_tasks
 
-            # Формат завершенных задач
-            report_data.append(f'\n## Завершённые задачи ({len(completed_tasks)}):')
-            for task in completed_tasks:
-                task_title = task['title'][:46] + '...' if len(task['title']) > 46 else task['title']
-                report_data.append(f'- {task_title}')
 
-            # Сохранение отчета в словаре
-            reports_data[user_id] = '\n'.join(report_data)
-
-    except Exception as exception:
-        print(f'Непредвиденная ошибка при записи пользователя {username}: {exception}')
-
-    # Формат имени файла
-    file_name = f'tasks/{username}.txt'
-
+# Функция для записи отчета в файл
+def write_report_to_file(file_name, report_content, username, current_time):
     # Проверка на существование отчета
+    old_file_name = ''
     if os.path.exists(file_name):
         if os.name == 'posix':
             old_file_name = f'tasks/old_{username}_{current_time.strftime("%Y-%m-%dT%H:%M")}.txt'
@@ -64,60 +61,79 @@ def create_report(user_data, tasks_data):
         except OSError as ose_t:
             print(f'Упс... повторите попытку еще раз: {ose_t}')
             exit()
+    try:
+        with open(file_name, 'w', encoding='utf-8') as file:
+            file.write(report_content)
+    except PermissionError as pe:
+        print(f'У Вас нет прав доступа на запись файла: {pe}')
+        exit()
 
-# Установка URL-адреса для API
-TASKS_API_URL = 'https://json.medrating.org/todos'
-USERS_API_URL = 'https://json.medrating.org/users'
 
-# HTTP-запросы к API для получения данных о задачах и пользователях
-response_tasks = requests.get(TASKS_API_URL)
-response_users = requests.get(USERS_API_URL)
+# Функция для формирования текстового отчета для пользователя
+def create_report(user_data, tasks_data, current_time):
+    user_id = user_data.get('id')
+    company_name = (user_data.get('company')).get('name')
+    email = user_data.get('email')
 
-# Проверка выполнения запросов
-try:
-    tasks_data = response_tasks.json()
-    users_data = response_users.json()
-except requests.exceptions.RequestException as re:
-    print(f'Ошибка при выполнении HTTP-запроса: {re}')
-    exit()
+    # Список для хранения данных отчета
+    report_data = [f'# Отчёт для {company_name}.',
+                   f'{user_data["name"]} <{email}> {current_time.strftime("%d.%m.%Y %H:%M")}']
 
-# Проверка на корректность данных
-is_tasks_dict = all(isinstance(task, dict) for task in tasks_data)
-is_users_dict = all(isinstance(task, dict) for task in users_data)
-if not is_tasks_dict or not is_users_dict:
-    print('Данные имеют неверный формат')
-    exit()
+    # Фильтр задач по пользователю
+    user_tasks = get_user_tasks(user_id, tasks_data)
+    total_tasks = len(user_tasks)
 
-# Создание директории
-try:
-    if not os.path.exists('tasks'):
-        os.mkdir('tasks')
-except PermissionError as pe:
-    print(f'У Вас нет прав доступа на создание файла: {pe}')
-    exit()
+    report_data.append(f'Всего задач: {total_tasks}\n')
+    if total_tasks == 0:
+        report_data.append('## У данного пользователя нет задач')
+        report_data.append('\n## Актуальные задачи (0)')
+        report_data.append('\n## Завершённые задачи (0)')
+    else:
+        # Разделение задач на актуальные и завершенные
+        completed_tasks, incomplete_tasks = categorize_tasks(user_tasks)
 
-# Определение местного времени
-local_timezone = pytz.timezone('Europe/Moscow')
-current_time = datetime.now(local_timezone)
+        # Формат актуальных задач
+        report_data.append(f'## Актуальные задачи ({len(incomplete_tasks)}):')
+        for task in incomplete_tasks:
+            task_title = task['title'][:46] + '...' if len(task['title']) > 46 else task['title']
+            report_data.append(f'- {task_title}')
 
-# Словарь для хранения данных отчетов в памяти
-reports_data = {}
+        # Формат завершенных задач
+        report_data.append(f'\n## Завершённые задачи ({len(completed_tasks)}):')
+        for task in completed_tasks:
+            task_title = task['title'][:46] + '...' if len(task['title']) > 46 else task['title']
+            report_data.append(f'- {task_title}')
 
-# Создание и запись отчета для всех существующих(непустых) пользователей
-for user in users_data:
+    user_report = '\n'.join(report_data)
 
-    create_report(user, tasks_data)
-    user_id = user.get('id')
-    username = user.get('username')
+    return user_report
 
-    # Получить отчет из словаря или пустую строку, если отчета нет
-    report_content = reports_data.get(user_id, '')
 
-    if report_content:
-        try:
-            file_name = f'tasks/{username}.txt'
-            with open(file_name, 'w', encoding='utf-8') as file:
-                file.write(report_content)
-        except PermissionError as pe:
-            print(f'У Вас нет прав доступа на запись: {pe}')
-            exit()
+def main():
+    # Установка URL-адреса для API
+    TASKS_API_URL = 'https://json.medrating.org/todos'
+    USERS_API_URL = 'https://json.medrating.org/users'
+
+    tasks_data = perform_request(TASKS_API_URL)
+    users_data = perform_request(USERS_API_URL)
+
+    if not is_valid_data(tasks_data) and not is_valid_data(users_data):
+        print('Данные имеют неверный формат')
+        exit()
+
+    dir_name = 'tasks'
+    create_directory(dir_name)
+
+    # Создание и запись отчета для всех существующих(непустых) пользователей
+    for user in users_data:
+        current_time = datetime.now()
+        report_content = create_report(user, tasks_data, current_time)
+        username = user.get('username')
+
+        if report_content:
+            file_name = f'{dir_name}/{username}.txt'
+            write_report_to_file(file_name, report_content, username, current_time)
+
+
+if __name__ == '__main__':
+    main()
