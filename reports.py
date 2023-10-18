@@ -47,7 +47,8 @@ def categorize_tasks(user_tasks):
 
 
 # Функция для записи отчета в файл
-def write_report_to_file(file_name, report_content, username, current_time):
+def write_report_to_file(file_name, report_content, username):
+    current_time = datetime.now()
     # Проверка на существование отчета
     old_file_name = ''
     if os.path.exists(file_name):
@@ -70,10 +71,11 @@ def write_report_to_file(file_name, report_content, username, current_time):
 
 
 # Функция для формирования текстового отчета для пользователя
-def create_report(user_data, tasks_data, current_time):
+def create_report(user_data, tasks_data):
     user_id = user_data.get('id')
     company_name = (user_data.get('company')).get('name')
     email = user_data.get('email')
+    current_time = datetime.now()
 
     # Список для хранения данных отчета
     report_data = [f'# Отчёт для {company_name}.',
@@ -126,13 +128,12 @@ def main():
 
     # Создание и запись отчета для всех существующих(непустых) пользователей
     for user in users_data:
-        current_time = datetime.now()
-        report_content = create_report(user, tasks_data, current_time)
+        report_content = create_report(user, tasks_data)
         username = user.get('username')
 
         if report_content:
             file_name = f'{dir_name}/{username}.txt'
-            write_report_to_file(file_name, report_content, username, current_time)
+            write_report_to_file(file_name, report_content, username)
 
 
 if __name__ == '__main__':
